@@ -1,4 +1,18 @@
-pub const OPCode = enum {
-    o0NNN,
-    o00E0,
+pub const OPCode = enum(u4) {
+    EXECUTE_MACHINE = 0,
+    JUMP = 1,
+    EXECUTE = 2,
+    SKIP_EQUAL = 3,
+    SKIP_NOT_EQUAL = 4,
+    SKIP_EQ_VY = 5,
+    STORE_IMM = 6,
+    ADD = 7,
+    MATH = 8,
+    SKIP_NOT_EQUAL_VY = 9,
+    STORE_INDEX_IMM = 10,
+    JUMP_OFFSET = 11,
+    RAND = 12,
+    DRAW = 13,
+    SKIP_KEY = 14,
+    OTHER = 15,
 };
