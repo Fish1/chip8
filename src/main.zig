@@ -43,36 +43,53 @@ fn load() !void {
 }
 
 fn run() !void {
-    while (address_register.get() < memory.max()) {
-        // while (address_register.get() < 400) {
-        const instruction = memory.get(address_register.get());
-        const opcode: OPCode = @enumFromInt(instruction >> 12);
+    var counter: u16 = 0x200;
+    var random = std.rand.DefaultPrng.init(1);
 
-        std.log.info("addr: {} data: {x} opcode: {}", .{ address_register.get(), instruction, opcode });
+    while (counter < memory.max()) {
+        const instruction = memory.get(counter);
+        const opcode: OPCode = @enumFromInt(instruction >> 12);
+        var inc = true;
+
+        std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter, instruction, opcode });
         switch (opcode) {
-            OPCode.EXECUTE_MACHINE => {
-                // try instructions.execute_machine(instruction);
+            OPCode.MACHINE => {
+                try instructions.machine(instruction);
             },
             OPCode.JUMP => {
-                instructions.jump(instruction);
-                break;
+                instructions.jump(instruction, &counter);
+                inc = false;
             },
             OPCode.EXECUTE => {
-                try instructions.execute_subroutine(instruction);
+                try instructions.subroutine(instruction);
             },
             OPCode.DRAW => {},
-            OPCode.STORE_IMM => {
-                instructions.store_imm(instruction);
+            OPCode.LOAD => {
+                instructions.load(instruction);
             },
-            OPCode.STORE_INDEX_IMM => {
-                instructions.store_index_imm(instruction);
+            OPCode.LOAD_I => {
+                instructions.load_i(instruction);
+            },
+            OPCode.RAND => {
+                instructions.rand(instruction, &random);
+            },
+            OPCode.MATH => {
+                instructions.math(instruction);
+            },
+            OPCode.SKIP_NE => {
+                instructions.skip_ne(instruction, &counter);
             },
             else => {
                 std.log.err("unknown instruction {x}", .{instruction});
                 break;
             },
         }
-        address_register.increment();
+
+        if (inc == true) {
+            counter += 1;
+        }
+
+        std.time.sleep(500000000);
     }
 }
 
