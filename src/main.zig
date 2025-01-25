@@ -1,5 +1,9 @@
 const std = @import("std");
 
+const c = @cImport({
+    @cInclude("SDL2/SDL.h");
+});
+
 const data_register = @import("data_register.zig");
 const DataRegister = data_register.DataRegister;
 
@@ -89,7 +93,7 @@ fn run() !void {
             counter += 1;
         }
 
-        std.time.sleep(500000000);
+        std.time.sleep(100000000);
     }
 }
 
@@ -98,6 +102,18 @@ pub fn main() !void {
         std.log.err("usage\napp [bin]", .{});
         return;
     }
+
+    if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
+        c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
+        return;
+    }
+    defer c.SDL_Quit();
+
+    const screen = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, 400, 140, c.SDL_WINDOW_OPENGL) orelse {
+        c.SDL_Log("unable to create window: %s", c.SDL_GetError());
+        return;
+    };
+    defer c.SDL_DestroyWindow(screen);
 
     load() catch {
         std.log.err("could not load program...", .{});
