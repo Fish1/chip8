@@ -3,19 +3,19 @@ const MAX_SIZE = 4096;
 
 var memory: [MAX_SIZE]u16 = undefined;
 
-pub fn get(address: usize) u16 {
+pub fn get(address: u16) u16 {
     return memory[address];
 }
 
-pub fn get_offset(offset: usize) u16 {
+pub fn get_offset(offset: u16) u16 {
     return memory[START_OFFSET + offset];
 }
 
-pub fn set(address: usize, value: u16) void {
+pub fn set(address: u16, value: u16) void {
     memory[address] = value;
 }
 
-pub fn set_offset(offset: usize, value: u16) void {
+pub fn set_offset(offset: u16, value: u16) void {
     memory[START_OFFSET + offset] = value;
 }
 

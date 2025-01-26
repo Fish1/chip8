@@ -33,7 +33,7 @@ fn load() !void {
     var file_buffer = std.io.bufferedReader(file.reader());
     var buffer: [2]u8 = undefined;
 
-    var offset: usize = 0;
+    var offset: u16 = 0;
     while (true) {
         const num_read_bytes = try file_buffer.read(&buffer);
         if (num_read_bytes == 0) {
@@ -46,54 +46,30 @@ fn load() !void {
     }
 }
 
-fn run() !void {
-    var counter: u16 = 0x200;
-    var random = std.rand.DefaultPrng.init(1);
+fn run(counter: *u16, random: *std.Random.Xoshiro256) !void {
+    const instruction = memory.get(counter.*);
+    const opcode: OPCode = @enumFromInt(instruction >> 12);
+    var inc = true;
 
-    while (counter < memory.max()) {
-        const instruction = memory.get(counter);
-        const opcode: OPCode = @enumFromInt(instruction >> 12);
-        var inc = true;
+    std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter.*, instruction, opcode });
+    switch (opcode) {
+        OPCode.MACHINE => try instructions.machine(instruction),
+        OPCode.EXECUTE => try instructions.subroutine(instruction),
+        OPCode.DRAW => instructions.draw(),
+        OPCode.LOAD => instructions.load(instruction),
+        OPCode.LOAD_I => instructions.load_i(instruction),
+        OPCode.RAND => instructions.rand(instruction, random),
+        OPCode.MATH => instructions.math(instruction),
+        OPCode.SKIP_NE => instructions.skip_ne(instruction, counter),
+        OPCode.JUMP => instructions.jump(instruction, counter, &inc),
+        else => {
+            std.log.err("unknown instruction {x}", .{instruction});
+            return error.UnknownInstruction;
+        },
+    }
 
-        std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter, instruction, opcode });
-        switch (opcode) {
-            OPCode.MACHINE => {
-                try instructions.machine(instruction);
-            },
-            OPCode.JUMP => {
-                instructions.jump(instruction, &counter);
-                inc = false;
-            },
-            OPCode.EXECUTE => {
-                try instructions.subroutine(instruction);
-            },
-            OPCode.DRAW => {},
-            OPCode.LOAD => {
-                instructions.load(instruction);
-            },
-            OPCode.LOAD_I => {
-                instructions.load_i(instruction);
-            },
-            OPCode.RAND => {
-                instructions.rand(instruction, &random);
-            },
-            OPCode.MATH => {
-                instructions.math(instruction);
-            },
-            OPCode.SKIP_NE => {
-                instructions.skip_ne(instruction, &counter);
-            },
-            else => {
-                std.log.err("unknown instruction {x}", .{instruction});
-                break;
-            },
-        }
-
-        if (inc == true) {
-            counter += 1;
-        }
-
-        std.time.sleep(100000000);
+    if (inc == true) {
+        counter.* += 1;
     }
 }
 
@@ -115,11 +91,57 @@ pub fn main() !void {
     };
     defer c.SDL_DestroyWindow(screen);
 
+    const renderer = c.SDL_CreateRenderer(screen, -1, 0) orelse {
+        c.SDL_Log("Unable to create renderer: %s", c.SDL_GetError());
+        return;
+    };
+    defer c.SDL_DestroyRenderer(renderer);
+
     load() catch {
-        std.log.err("could not load program...", .{});
+        unreachable;
     };
 
-    run() catch {};
+    var quit = false;
+    var counter: u16 = 0x200;
+    var random = std.rand.DefaultPrng.init(1);
+
+    const buffer: ?*c.SDL_Texture = c.SDL_CreateTexture(renderer, c.SDL_PIXELFORMAT_BGRA8888, c.SDL_TEXTUREACCESS_STREAMING, 64, 32);
+
+    // fix meeee
+    std.log.info("BEFORE", .{});
+    var pixels: ?[*]c_int = undefined;
+    _ = c.SDL_LockTexture(buffer, null, @ptrCast(&pixels), 32 * 4);
+    std.log.info("LOCKED", .{});
+
+    while (quit == false) {
+        var event: c.SDL_Event = undefined;
+        while (c.SDL_PollEvent(&event) != 0) {
+            switch (event.type) {
+                c.SDL_QUIT => {
+                    quit = true;
+                },
+                else => {},
+            }
+        }
+
+        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        _ = c.SDL_RenderClear(renderer);
+
+        var rect: c.SDL_Rect = undefined;
+        rect.w = 30;
+        rect.h = 30;
+        rect.x = 50;
+        rect.y = 50;
+        _ = c.SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0);
+        _ = c.SDL_RenderFillRect(renderer, &rect);
+
+        run(&counter, &random) catch {
+            unreachable;
+        };
+
+        c.SDL_RenderPresent(renderer);
+        c.SDL_Delay(100);
+    }
 
     std.log.info("goodbye", .{});
 }
