@@ -13,6 +13,9 @@ const OPCode = @import("instruction.zig").OPCode;
 
 const instructions = @import("instructions/instructions.zig");
 
+const width = 64;
+const height = 32;
+
 fn get_obj_path() [*:0]u8 {
     return std.os.argv[0];
 }
@@ -85,7 +88,7 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
-    const screen = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, 400, 140, c.SDL_WINDOW_OPENGL) orelse {
+    const screen = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, width, height, 0) orelse {
         c.SDL_Log("unable to create window: %s", c.SDL_GetError());
         return;
     };
@@ -105,13 +108,25 @@ pub fn main() !void {
     var counter: u16 = 0x200;
     var random = std.rand.DefaultPrng.init(1);
 
-    const buffer: ?*c.SDL_Texture = c.SDL_CreateTexture(renderer, c.SDL_PIXELFORMAT_BGRA8888, c.SDL_TEXTUREACCESS_STREAMING, 64, 32);
+    const texture = c.SDL_CreateTexture(renderer, c.SDL_PIXELFORMAT_RGBA32, c.SDL_TEXTUREACCESS_STREAMING, width, height) orelse {
+        c.SDL_Log("Failed to create texture: %s", c.SDL_GetError());
+        return;
+    };
+    std.log.info("buffer = {any}", .{texture});
 
     // fix meeee
-    std.log.info("BEFORE", .{});
-    var pixels: ?[*]c_int = undefined;
-    _ = c.SDL_LockTexture(buffer, null, @ptrCast(&pixels), 32 * 4);
-    std.log.info("LOCKED", .{});
+    var data: [width][height]u32 = undefined;
+    std.log.info("data = {any}", .{data});
+    // var data: [*c]const u32 = [3]u32{ 1, 2, 3 };
+
+    // var pixels: *[width][height]u32 = &data;
+    var pitch: c_int = width * 4;
+    if (c.SDL_LockTexture(texture, null, @ptrCast(@constCast(&&data)), &pitch) != 0) {
+        c.SDL_Log("Failed to lock texture: %s", c.SDL_GetError());
+        return;
+    }
+
+    std.log.info("rand = {}", .{data[0][0]});
 
     while (quit == false) {
         var event: c.SDL_Event = undefined;
@@ -124,23 +139,30 @@ pub fn main() !void {
             }
         }
 
-        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-        _ = c.SDL_RenderClear(renderer);
+        for (0..width) |i| {
+            @memset(&data[i], 0xffffffff);
+        }
+        c.SDL_UnlockTexture(texture);
+        const y = c.SDL_RenderCopy(renderer, texture, null, null);
+        std.log.info("y = {}", .{y});
+        c.SDL_RenderPresent(renderer);
 
-        var rect: c.SDL_Rect = undefined;
-        rect.w = 30;
-        rect.h = 30;
-        rect.x = 50;
-        rect.y = 50;
-        _ = c.SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0);
-        _ = c.SDL_RenderFillRect(renderer, &rect);
+        // _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        // _ = c.SDL_RenderClear(renderer);
+
+        // var rect: c.SDL_Rect = undefined;
+        // rect.w = 30;
+        // rect.h = 30;
+        // rect.x = 50;
+        // rect.y = 50;
+        // _ = c.SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0);
+        // _ = c.SDL_RenderFillRect(renderer, &rect);
 
         run(&counter, &random) catch {
             unreachable;
         };
 
-        c.SDL_RenderPresent(renderer);
-        c.SDL_Delay(100);
+        c.SDL_Delay(200);
     }
 
     std.log.info("goodbye", .{});
