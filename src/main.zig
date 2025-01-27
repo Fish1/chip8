@@ -112,21 +112,18 @@ pub fn main() !void {
         c.SDL_Log("Failed to create texture: %s", c.SDL_GetError());
         return;
     };
-    std.log.info("buffer = {any}", .{texture});
+    var format: u32 = 0;
+    var w: c_int = 0;
+    var h: c_int = 0;
 
-    // fix meeee
-    var data: [width][height]u32 = undefined;
-    std.log.info("data = {any}", .{data});
-    // var data: [*c]const u32 = [3]u32{ 1, 2, 3 };
-
-    // var pixels: *[width][height]u32 = &data;
-    var pitch: c_int = width * 4;
-    if (c.SDL_LockTexture(texture, null, @ptrCast(@constCast(&&data)), &pitch) != 0) {
-        c.SDL_Log("Failed to lock texture: %s", c.SDL_GetError());
+    if (c.SDL_QueryTexture(texture, &format, null, &w, &h) != 0) {
+        std.log.info("failed to query texture", .{});
         return;
     }
 
-    std.log.info("rand = {}", .{data[0][0]});
+    // fix meeee
+    var data: [width][height]u32 = undefined;
+    var pitch: c_int = width * 4;
 
     while (quit == false) {
         var event: c.SDL_Event = undefined;
@@ -139,11 +136,18 @@ pub fn main() !void {
             }
         }
 
+        if (c.SDL_LockTexture(texture, null, @ptrCast(@constCast(&&data)), &pitch) != 0) {
+            c.SDL_Log("Failed to lock texture: %s", c.SDL_GetError());
+            return;
+        }
         for (0..width) |i| {
-            @memset(&data[i], 0xffffffff);
+            var f: c.SDL_PixelFormat = c.SDL_PixelFormat{ .format = format };
+            const color = c.SDL_MapRGBA(&f, 100, 100, 100, 100);
+            @memset(&data[i], color);
+            std.log.info("{any}", .{data[i]});
         }
         c.SDL_UnlockTexture(texture);
-        const y = c.SDL_RenderCopy(renderer, texture, null, null);
+        const y = c.SDL_RenderCopyEx(renderer, texture, null, null);
         std.log.info("y = {}", .{y});
         c.SDL_RenderPresent(renderer);
 
