@@ -15,6 +15,7 @@ const instructions = @import("instructions/instructions.zig");
 
 const width = 64;
 const height = 32;
+var pitch: c_int = width * 4;
 
 fn get_obj_path() [*:0]u8 {
     return std.os.argv[0];
@@ -49,7 +50,7 @@ fn load() !void {
     }
 }
 
-fn run(counter: *u16, random: *std.Random.Xoshiro256) !void {
+fn run(counter: *u16, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
     const instruction = memory.get(counter.*);
     const opcode: OPCode = @enumFromInt(instruction >> 12);
     var inc = true;
@@ -58,7 +59,7 @@ fn run(counter: *u16, random: *std.Random.Xoshiro256) !void {
     switch (opcode) {
         OPCode.MACHINE => try instructions.machine(instruction),
         OPCode.EXECUTE => try instructions.subroutine(instruction),
-        OPCode.DRAW => instructions.draw(),
+        OPCode.DRAW => try instructions.draw(instruction, pixels, width * height),
         OPCode.LOAD => instructions.load(instruction),
         OPCode.LOAD_I => instructions.load_i(instruction),
         OPCode.RAND => instructions.rand(instruction, random),
@@ -88,13 +89,15 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
-    const screen = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, width, height, 0) orelse {
+    const window = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, width, height, c.SDL_WINDOW_RESIZABLE) orelse {
         c.SDL_Log("unable to create window: %s", c.SDL_GetError());
         return;
     };
-    defer c.SDL_DestroyWindow(screen);
+    defer c.SDL_DestroyWindow(window);
 
-    const renderer = c.SDL_CreateRenderer(screen, -1, 0) orelse {
+    c.SDL_SetWindowSize(window, 800, 400);
+
+    const renderer = c.SDL_CreateRenderer(window, -1, 0) orelse {
         c.SDL_Log("Unable to create renderer: %s", c.SDL_GetError());
         return;
     };
@@ -112,18 +115,6 @@ pub fn main() !void {
         c.SDL_Log("Failed to create texture: %s", c.SDL_GetError());
         return;
     };
-    var format: u32 = 0;
-    var w: c_int = 0;
-    var h: c_int = 0;
-
-    if (c.SDL_QueryTexture(texture, &format, null, &w, &h) != 0) {
-        std.log.info("failed to query texture", .{});
-        return;
-    }
-
-    // fix meeee
-    var data: [width][height]u32 = undefined;
-    var pitch: c_int = width * 4;
 
     while (quit == false) {
         var event: c.SDL_Event = undefined;
@@ -136,35 +127,28 @@ pub fn main() !void {
             }
         }
 
-        if (c.SDL_LockTexture(texture, null, @ptrCast(@constCast(&&data)), &pitch) != 0) {
+        var pixels: [*]u32 = undefined;
+        if (c.SDL_LockTexture(texture, null, @ptrCast(&pixels), &pitch) != 0) {
             c.SDL_Log("Failed to lock texture: %s", c.SDL_GetError());
             return;
         }
-        for (0..width) |i| {
-            var f: c.SDL_PixelFormat = c.SDL_PixelFormat{ .format = format };
-            const color = c.SDL_MapRGBA(&f, 100, 100, 100, 100);
-            @memset(&data[i], color);
-            std.log.info("{any}", .{data[i]});
-        }
-        c.SDL_UnlockTexture(texture);
-        const y = c.SDL_RenderCopyEx(renderer, texture, null, null);
-        std.log.info("y = {}", .{y});
-        c.SDL_RenderPresent(renderer);
 
-        // _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-        // _ = c.SDL_RenderClear(renderer);
-
-        // var rect: c.SDL_Rect = undefined;
-        // rect.w = 30;
-        // rect.h = 30;
-        // rect.x = 50;
-        // rect.y = 50;
-        // _ = c.SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0);
-        // _ = c.SDL_RenderFillRect(renderer, &rect);
-
-        run(&counter, &random) catch {
+        run(&counter, &random, pixels) catch {
             unreachable;
         };
+
+        // for (0..width * height) |i| {
+        // pixels[i] = @intCast(random.next() & 0xffffffff);
+        // }
+
+        c.SDL_UnlockTexture(texture);
+
+        if (c.SDL_RenderCopy(renderer, texture, null, null) != 0) {
+            c.SDL_Log("Failed to render: %s", c.SDL_GetError());
+            return;
+        }
+
+        c.SDL_RenderPresent(renderer);
 
         c.SDL_Delay(200);
     }
