@@ -35,7 +35,7 @@ fn load() !void {
     defer file.close();
 
     var file_buffer = std.io.bufferedReader(file.reader());
-    var buffer: [2]u8 = undefined;
+    var buffer: [1]u8 = undefined;
 
     var offset: u16 = 0;
     while (true) {
@@ -43,15 +43,13 @@ fn load() !void {
         if (num_read_bytes == 0) {
             break;
         }
-        const a = @as(u16, buffer[0]) << 8;
-        const b = @as(u16, buffer[1]);
-        memory.set_offset(offset, a + b);
+        memory.set_offset(offset, buffer[0]);
         offset += 1;
     }
 }
 
-fn run(counter: *u16, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
-    const instruction = memory.get(counter.*);
+fn run(counter: *usize, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
+    const instruction = memory.get_instruction(counter.*);
     const opcode: OPCode = @enumFromInt(instruction >> 12);
     var inc = true;
 
@@ -73,7 +71,7 @@ fn run(counter: *u16, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
     }
 
     if (inc == true) {
-        counter.* += 1;
+        counter.* += 2;
     }
 }
 
@@ -108,7 +106,7 @@ pub fn main() !void {
     };
 
     var quit = false;
-    var counter: u16 = 0x200;
+    var counter: usize = 0x200;
     var random = std.rand.DefaultPrng.init(1);
 
     const texture = c.SDL_CreateTexture(renderer, c.SDL_PIXELFORMAT_RGBA32, c.SDL_TEXTUREACCESS_STREAMING, width, height) orelse {
@@ -136,10 +134,6 @@ pub fn main() !void {
         run(&counter, &random, pixels) catch {
             unreachable;
         };
-
-        // for (0..width * height) |i| {
-        // pixels[i] = @intCast(random.next() & 0xffffffff);
-        // }
 
         c.SDL_UnlockTexture(texture);
 
