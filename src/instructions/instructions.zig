@@ -7,3 +7,6 @@ pub const load_i = @import("./load_i.zig").load_i;
 pub const rand = @import("./rand.zig").rand;
 pub const math = @import("./math.zig").math;
 pub const skip_ne = @import("./skip_ne.zig").skip_ne;
+pub const add = @import("./add.zig").add;
+pub const skip_eq_imm = @import("./skip_eq_imm.zig").skip_eq_imm;
+pub const jump_offset = @import("./jump_offset.zig").jump_offset;

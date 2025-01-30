@@ -13,9 +13,7 @@ const OPCode = @import("instruction.zig").OPCode;
 
 const instructions = @import("instructions/instructions.zig");
 
-const width = 64;
-const height = 32;
-var pitch: c_int = width * 4;
+const Renderer = @import("Renderer.zig").Renderer();
 
 fn get_obj_path() [*:0]u8 {
     return std.os.argv[0];
@@ -48,7 +46,7 @@ fn load() !void {
     }
 }
 
-fn run(counter: *usize, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
+fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer) !void {
     const instruction = memory.get_instruction(counter.*);
     const opcode: OPCode = @enumFromInt(instruction >> 12);
     var inc = true;
@@ -57,13 +55,16 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
     switch (opcode) {
         OPCode.MACHINE => try instructions.machine(instruction),
         OPCode.EXECUTE => try instructions.subroutine(instruction),
-        OPCode.DRAW => try instructions.draw(instruction, pixels, width * height),
+        OPCode.DRAW => try instructions.draw(instruction, renderer),
         OPCode.LOAD => instructions.load(instruction),
         OPCode.LOAD_I => instructions.load_i(instruction),
         OPCode.RAND => instructions.rand(instruction, random),
         OPCode.MATH => instructions.math(instruction),
         OPCode.SKIP_NE => instructions.skip_ne(instruction, counter),
         OPCode.JUMP => instructions.jump(instruction, counter, &inc),
+        OPCode.ADD => instructions.add(instruction),
+        OPCode.SKIP_EQ_IMM => instructions.skip_eq_imm(instruction, counter),
+        OPCode.JUMP_OFFSET => instructions.jump_offset(instruction, counter, &inc),
         else => {
             std.log.err("unknown instruction {x}", .{instruction});
             return error.UnknownInstruction;
@@ -75,75 +76,36 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, pixels: [*]u32) !void {
     }
 }
 
+fn poll(quit: *bool) void {
+    var event: c.SDL_Event = undefined;
+    while (c.SDL_PollEvent(&event) != 0) {
+        switch (event.type) {
+            c.SDL_QUIT => {
+                quit.* = true;
+            },
+            else => {},
+        }
+    }
+}
+
 pub fn main() !void {
     if (valid_arguments() == false) {
         std.log.err("usage\napp [bin]", .{});
         return;
     }
 
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
-        c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
-        return;
-    }
-    defer c.SDL_Quit();
+    var renderer = try Renderer.init();
+    defer renderer.destroy();
 
-    const window = c.SDL_CreateWindow("My Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, width, height, c.SDL_WINDOW_RESIZABLE) orelse {
-        c.SDL_Log("unable to create window: %s", c.SDL_GetError());
-        return;
-    };
-    defer c.SDL_DestroyWindow(window);
-
-    c.SDL_SetWindowSize(window, 800, 400);
-
-    const renderer = c.SDL_CreateRenderer(window, -1, 0) orelse {
-        c.SDL_Log("Unable to create renderer: %s", c.SDL_GetError());
-        return;
-    };
-    defer c.SDL_DestroyRenderer(renderer);
-
-    load() catch {
-        unreachable;
-    };
+    try load();
 
     var quit = false;
     var counter: usize = 0x200;
     var random = std.rand.DefaultPrng.init(1);
 
-    const texture = c.SDL_CreateTexture(renderer, c.SDL_PIXELFORMAT_RGBA32, c.SDL_TEXTUREACCESS_STREAMING, width, height) orelse {
-        c.SDL_Log("Failed to create texture: %s", c.SDL_GetError());
-        return;
-    };
-
     while (quit == false) {
-        var event: c.SDL_Event = undefined;
-        while (c.SDL_PollEvent(&event) != 0) {
-            switch (event.type) {
-                c.SDL_QUIT => {
-                    quit = true;
-                },
-                else => {},
-            }
-        }
-
-        var pixels: [*]u32 = undefined;
-        if (c.SDL_LockTexture(texture, null, @ptrCast(&pixels), &pitch) != 0) {
-            c.SDL_Log("Failed to lock texture: %s", c.SDL_GetError());
-            return;
-        }
-
-        run(&counter, &random, pixels) catch {
-            unreachable;
-        };
-
-        c.SDL_UnlockTexture(texture);
-
-        if (c.SDL_RenderCopy(renderer, texture, null, null) != 0) {
-            c.SDL_Log("Failed to render: %s", c.SDL_GetError());
-            return;
-        }
-
-        c.SDL_RenderPresent(renderer);
-
+        poll(&quit);
+        try run(&counter, &random, &renderer);
         c.SDL_Delay(200);
     }
 
