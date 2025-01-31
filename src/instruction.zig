@@ -1,7 +1,7 @@
 pub const OPCode = enum(u4) {
     MACHINE = 0,
     JUMP = 1,
-    EXECUTE = 2,
+    SUBROUTINE = 2,
     SKIP_EQ_IMM = 3,
     SKIP_NE_IMM = 4,
     SKIP_EQ = 5,

@@ -5,16 +5,51 @@ const data_register = @import("../data_register.zig");
 pub fn math(instruction: u16) void {
     const tag = instruction & 0xf;
 
-    const left_reg: data_register.DataRegister = @enumFromInt((instruction >> 8) & 0xf);
-    const data_left_reg = data_register.get(left_reg);
+    const rx: data_register.DataRegister = @enumFromInt((instruction >> 8) & 0xf);
+    const dx = data_register.get(rx);
 
-    const right_reg: data_register.DataRegister = @enumFromInt((instruction >> 4) & 0xf);
-    const data_right_reg = data_register.get(right_reg);
+    const ry: data_register.DataRegister = @enumFromInt((instruction >> 4) & 0xf);
+    const dy = data_register.get(ry);
 
     switch (tag) {
+        0 => {
+            data_register.set(rx, dy);
+        },
+        1 => {
+            data_register.set(rx, dx | dy);
+        },
+        2 => {
+            data_register.set(rx, dx & dy);
+        },
         3 => {
-            // xor
-            data_register.set(left_reg, data_left_reg ^ data_right_reg);
+            data_register.set(rx, dx ^ dy);
+        },
+        4 => {
+            const add = @addWithOverflow(dx, dy);
+            data_register.set(rx, add[0]);
+            data_register.set(data_register.DataRegister.VF, add[1]);
+        },
+        5 => {
+            const sub = @subWithOverflow(dx, dy);
+            data_register.set(rx, sub[0]);
+            data_register.set(data_register.DataRegister.VF, sub[1]);
+        },
+        6 => {
+            const least = dy & 0x1;
+            const shift = dy >> 1;
+            data_register.set(rx, shift);
+            data_register.set(data_register.DataRegister.VF, least);
+        },
+        7 => {
+            const sub = @subWithOverflow(dy, dx);
+            data_register.set(rx, sub[0]);
+            data_register.set(data_register.DataRegister.VF, sub[1]);
+        },
+        14 => {
+            const most = dy & 0x80;
+            const shift = dy << 1;
+            data_register.set(rx, shift);
+            data_register.set(data_register.DataRegister.VF, most);
         },
         else => {
             std.log.err("unable to parse math opcode", .{});

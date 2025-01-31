@@ -1,11 +1,11 @@
 const MAX = 12;
-var STACK: [MAX]u16 = undefined;
+var STACK: [MAX]usize = undefined;
 
 var next: usize = 0;
 
 pub const CallStackError = error{ EmptyStack, FullStack };
 
-pub fn push(address: u16) error{FullStack}!void {
+pub fn push(address: usize) error{FullStack}!void {
     if (next == MAX) {
         return error.FullStack;
     }
@@ -13,7 +13,7 @@ pub fn push(address: u16) error{FullStack}!void {
     next += 1;
 }
 
-pub fn pop() error{EmptyStack}!u16 {
+pub fn pop() error{EmptyStack}!usize {
     if (next == 0) {
         return error.EmptyStack;
     }

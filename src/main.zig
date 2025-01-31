@@ -53,18 +53,24 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer) !vo
 
     std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter.*, instruction, opcode });
     switch (opcode) {
-        OPCode.MACHINE => try instructions.machine(instruction),
-        OPCode.EXECUTE => try instructions.subroutine(instruction),
+        OPCode.MACHINE => try instructions.machine(instruction, counter),
+        OPCode.SUBROUTINE => try instructions.subroutine(instruction, counter, &inc),
+
         OPCode.DRAW => try instructions.draw(instruction, renderer),
         OPCode.LOAD => instructions.load(instruction),
         OPCode.LOAD_I => instructions.load_i(instruction),
         OPCode.RAND => instructions.rand(instruction, random),
         OPCode.MATH => instructions.math(instruction),
-        OPCode.SKIP_NE => instructions.skip_ne(instruction, counter),
         OPCode.JUMP => instructions.jump(instruction, counter, &inc),
         OPCode.ADD => instructions.add(instruction),
-        OPCode.SKIP_EQ_IMM => instructions.skip_eq_imm(instruction, counter),
         OPCode.JUMP_OFFSET => instructions.jump_offset(instruction, counter, &inc),
+
+        OPCode.SKIP_EQ_IMM => instructions.skip_eq_imm(instruction, counter),
+        OPCode.SKIP_NE_IMM => instructions.skip_ne_imm(instruction, counter),
+        OPCode.SKIP_NE => instructions.skip_ne(instruction, counter),
+        OPCode.SKIP_EQ => instructions.skip_eq(instruction, counter),
+
+        OPCode.OTHER => instructions.other(instruction),
         else => {
             std.log.err("unknown instruction {x}", .{instruction});
             return error.UnknownInstruction;
@@ -106,7 +112,7 @@ pub fn main() !void {
     while (quit == false) {
         poll(&quit);
         try run(&counter, &random, &renderer);
-        c.SDL_Delay(200);
+        c.SDL_Delay(0);
     }
 
     std.log.info("goodbye", .{});
