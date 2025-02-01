@@ -112,7 +112,7 @@ pub fn main() !void {
     while (quit == false) {
         poll(&quit);
         try run(&counter, &random, &renderer);
-        c.SDL_Delay(100);
+        c.SDL_Delay(20);
     }
 
     std.log.info("goodbye", .{});
