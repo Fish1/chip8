@@ -13,5 +13,6 @@ pub const skip_ne = @import("./skip_ne.zig").skip_ne;
 pub const skip_eq = @import("./skip_eq.zig").skip_gte;
 pub const skip_eq_imm = @import("./skip_eq_imm.zig").skip_eq_imm;
 pub const skip_ne_imm = @import("./skip_ne_imm.zig").skip_ne_imm;
+pub const skip_key = @import("./skip_key.zig").skip_key;
 
 pub const other = @import("./other.zig").other;

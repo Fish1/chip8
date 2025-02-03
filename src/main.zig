@@ -14,6 +14,7 @@ const OPCode = @import("instruction.zig").OPCode;
 const instructions = @import("instructions/instructions.zig");
 
 const Renderer = @import("Renderer.zig").Renderer();
+const Keyboard = @import("Keyboard.zig").Keyboard();
 
 fn get_obj_path() [*:0]u8 {
     return std.os.argv[0];
@@ -46,12 +47,12 @@ fn load() !void {
     }
 }
 
-fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer) !void {
+fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer, keyboard: *Keyboard) !void {
     const instruction = memory.get_instruction(counter.*);
     const opcode: OPCode = @enumFromInt(instruction >> 12);
     var inc = true;
 
-    std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter.*, instruction, opcode });
+    // std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter.*, instruction, opcode });
     switch (opcode) {
         OPCode.MACHINE => try instructions.machine(instruction, counter),
         OPCode.SUBROUTINE => try instructions.subroutine(instruction, counter, &inc),
@@ -69,12 +70,9 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer) !vo
         OPCode.SKIP_NE_IMM => instructions.skip_ne_imm(instruction, counter),
         OPCode.SKIP_NE => instructions.skip_ne(instruction, counter),
         OPCode.SKIP_EQ => instructions.skip_eq(instruction, counter),
+        OPCode.SKIP_KEY => instructions.skip_key(instruction, counter, keyboard),
 
         OPCode.OTHER => instructions.other(instruction),
-        else => {
-            std.log.err("unknown instruction {x}", .{instruction});
-            return error.UnknownInstruction;
-        },
     }
 
     if (inc == true) {
@@ -82,12 +80,15 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer) !vo
     }
 }
 
-fn poll(quit: *bool) void {
+fn poll(quit: *bool, keyboard: *Keyboard) void {
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
         switch (event.type) {
             c.SDL_QUIT => {
                 quit.* = true;
+            },
+            c.SDL_KEYDOWN, c.SDL_KEYUP => {
+                keyboard.handle_event(&event.key);
             },
             else => {},
         }
@@ -103,6 +104,8 @@ pub fn main() !void {
     var renderer = try Renderer.init();
     defer renderer.destroy();
 
+    var keyboard = Keyboard.init();
+
     try load();
 
     var quit = false;
@@ -110,9 +113,9 @@ pub fn main() !void {
     var random = std.rand.DefaultPrng.init(1);
 
     while (quit == false) {
-        poll(&quit);
-        try run(&counter, &random, &renderer);
-        c.SDL_Delay(20);
+        poll(&quit, &keyboard);
+        try run(&counter, &random, &renderer, &keyboard);
+        // c.SDL_Delay(20);
     }
 
     std.log.info("goodbye", .{});
