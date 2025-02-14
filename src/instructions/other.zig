@@ -4,11 +4,21 @@ const data_register = @import("../data_register.zig");
 const address_register = @import("../address_register.zig");
 const memory = @import("../memory.zig");
 
-pub fn other(instruction: u16) void {
+const Timer = @import("../Timer.zig").Timer();
+
+pub fn other(instruction: u16, delay_timer: *Timer) void {
     const tag = instruction & 0xff;
     const rx = (instruction >> 8) & 0xf;
 
     switch (tag) {
+        0x07 => {
+            const delay = delay_timer.getTime();
+            data_register.set(@enumFromInt(rx), delay);
+        },
+        0x15 => {
+            const dx = data_register.get(@enumFromInt(rx));
+            delay_timer.setTime(dx);
+        },
         0x1e => {
             const current = address_register.get();
             const dx = data_register.get(@enumFromInt(rx));

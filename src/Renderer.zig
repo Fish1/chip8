@@ -4,8 +4,8 @@ const c = @cImport({
 
 const std = @import("std");
 
-const WIDTH = 64;
-const HEIGHT = 32;
+pub const WIDTH = 64;
+pub const HEIGHT = 32;
 
 pub fn Renderer() type {
     return struct {
@@ -51,13 +51,22 @@ pub fn Renderer() type {
             }
         }
 
-        pub fn flip_pixel(this: @This(), x: usize, y: usize) void {
+        pub fn flip_pixel(this: @This(), x: usize, y: usize) bool {
             const index = (y * 64) + x;
+            const old = this.pixels[index];
             this.pixels[index] ^= 0xffffffff;
+            const new = this.pixels[index];
+            return (old != new and new == 0);
         }
 
         pub fn stop_draw(this: @This()) void {
             c.SDL_UnlockTexture(this.texture);
+        }
+
+        pub fn clear(this: *@This()) void {
+            for (0..WIDTH * HEIGHT) |index| {
+                this.pixels[index] = 0x0;
+            }
         }
 
         pub fn display(this: @This()) !void {

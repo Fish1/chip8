@@ -17,12 +17,15 @@ pub fn math(instruction: u16) void {
         },
         1 => {
             data_register.set(rx, dx | dy);
+            data_register.set(data_register.DataRegister.VF, 0);
         },
         2 => {
             data_register.set(rx, dx & dy);
+            data_register.set(data_register.DataRegister.VF, 0);
         },
         3 => {
             data_register.set(rx, dx ^ dy);
+            data_register.set(data_register.DataRegister.VF, 0);
         },
         4 => {
             const add = @addWithOverflow(dx, dy);

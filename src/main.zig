@@ -15,6 +15,7 @@ const instructions = @import("instructions/instructions.zig");
 
 const Renderer = @import("Renderer.zig").Renderer();
 const Keyboard = @import("Keyboard.zig").Keyboard();
+const Timer = @import("Timer.zig").Timer();
 
 fn get_obj_path() [*:0]u8 {
     return std.os.argv[0];
@@ -47,17 +48,23 @@ fn load() !void {
     }
 }
 
-fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer, keyboard: *Keyboard) !void {
+fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer, keyboard: *Keyboard, delay_timer: *Timer, frame_instruction_count: u64) !void {
     const instruction = memory.get_instruction(counter.*);
     const opcode: OPCode = @enumFromInt(instruction >> 12);
     var inc = true;
 
     // std.log.info("addr: {:0>4} data: {x:0>4} opcode: {}", .{ counter.*, instruction, opcode });
     switch (opcode) {
-        OPCode.MACHINE => try instructions.machine(instruction, counter),
+        OPCode.MACHINE => try instructions.machine(instruction, renderer, counter),
         OPCode.SUBROUTINE => try instructions.subroutine(instruction, counter, &inc),
 
-        OPCode.DRAW => try instructions.draw(instruction, renderer),
+        OPCode.DRAW => {
+            if (frame_instruction_count == 0) {
+                try instructions.draw(instruction, renderer);
+            } else {
+                counter.* -= 2;
+            }
+        },
         OPCode.LOAD => instructions.load(instruction),
         OPCode.LOAD_I => instructions.load_i(instruction),
         OPCode.RAND => instructions.rand(instruction, random),
@@ -72,7 +79,7 @@ fn run(counter: *usize, random: *std.Random.Xoshiro256, renderer: *Renderer, key
         OPCode.SKIP_EQ => instructions.skip_eq(instruction, counter),
         OPCode.SKIP_KEY => instructions.skip_key(instruction, counter, keyboard),
 
-        OPCode.OTHER => instructions.other(instruction),
+        OPCode.OTHER => instructions.other(instruction, delay_timer),
     }
 
     if (inc == true) {
@@ -105,6 +112,8 @@ pub fn main() !void {
     defer renderer.destroy();
 
     var keyboard = Keyboard.init();
+    var delay_timer = Timer.init();
+    var sound_timer = Timer.init();
 
     try load();
 
@@ -112,10 +121,21 @@ pub fn main() !void {
     var counter: usize = 0x200;
     var random = std.rand.DefaultPrng.init(1);
 
+    var fps_timer = try std.time.Timer.start();
+
     while (quit == false) {
+        delay_timer.tick();
+        sound_timer.tick();
+
         poll(&quit, &keyboard);
-        try run(&counter, &random, &renderer, &keyboard);
-        // c.SDL_Delay(20);
+
+        for (0..11) |frame_counter| {
+            try run(&counter, &random, &renderer, &keyboard, &delay_timer, frame_counter);
+        }
+
+        const remaining = (std.time.ns_per_s / 60) - fps_timer.read();
+        std.time.sleep(remaining);
+        fps_timer.reset();
     }
 
     std.log.info("goodbye", .{});
